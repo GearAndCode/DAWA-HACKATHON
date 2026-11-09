@@ -10,27 +10,23 @@ import 'pharmacy_matching_screen.dart';
 class ExtractedMedicineReviewScreen extends StatefulWidget {
   final int prescriptionId;
   final Uint8List imageBytes;
-  final String ocrRawText;
-  final double ocrConfidence;
-  final bool isUncertain;
-  final String? uncertaintyReason;
   final String? patientName;
+  final String? patientAge;
   final String? doctorName;
   final String? prescriptionDate;
-  final List<Map<String, dynamic>> initialItems;
+  final List<Map<String, dynamic>> initialMedicines;
+  final List<String> warnings;
 
   const ExtractedMedicineReviewScreen({
     super.key,
     required this.prescriptionId,
     required this.imageBytes,
-    required this.ocrRawText,
-    required this.ocrConfidence,
-    required this.isUncertain,
-    this.uncertaintyReason,
     this.patientName,
+    this.patientAge,
     this.doctorName,
     this.prescriptionDate,
-    required this.initialItems,
+    required this.initialMedicines,
+    this.warnings = const [],
   });
 
   @override
@@ -44,6 +40,7 @@ class _MedicineItemForm {
   final TextEditingController formCtrl;
   final TextEditingController qtyCtrl;
   final TextEditingController instructionsCtrl;
+  final String fieldStatus;
 
   _MedicineItemForm({
     required String name,
@@ -51,6 +48,7 @@ class _MedicineItemForm {
     required String form,
     required int qty,
     required String instructions,
+    this.fieldStatus = 'verified_from_image',
   })  : nameCtrl = TextEditingController(text: name),
         strengthCtrl = TextEditingController(text: strength),
         formCtrl = TextEditingController(text: form),
@@ -85,18 +83,24 @@ class _ExtractedMedicineReviewScreenState
   @override
   void initState() {
     super.initState();
-    if (widget.initialItems.isNotEmpty) {
-      for (final item in widget.initialItems) {
-        _forms.add(_MedicineItemForm(
-          name: item['medicine_name'] ?? '',
-          strength: item['strength'] ?? '500 mg',
-          form: item['dosage_form'] ?? 'Tablet',
-          qty: item['quantity'] is int ? item['quantity'] : 10,
-          instructions: item['instructions'] ?? 'As directed by physician',
-        ));
-      }
+    // Populate form ONLY with medicines genuinely returned by the backend
+    for (final m in widget.initialMedicines) {
+      final name = (m['original_name'] ?? m['medicine_name'] ?? '') as String;
+      final strength = (m['strength'] ?? '') as String;
+      final form = (m['dosage_form'] ?? 'Tablet') as String;
+      final qty = m['quantity'] is int ? m['quantity'] as int : 10;
+      final instructions = (m['instructions'] ?? 'As directed by physician') as String;
+      final status = (m['field_status'] ?? 'verified_from_image') as String;
+
+      _forms.add(_MedicineItemForm(
+        name: name,
+        strength: strength,
+        form: form,
+        qty: qty,
+        instructions: instructions,
+        fieldStatus: status,
+      ));
     }
-    // If no items were detected, leave the form empty so the user can add items manually
   }
 
   @override
@@ -111,10 +115,11 @@ class _ExtractedMedicineReviewScreenState
     setState(() {
       _forms.add(_MedicineItemForm(
         name: '',
-        strength: '500 mg',
+        strength: '',
         form: 'Tablet',
         qty: 10,
         instructions: 'As directed',
+        fieldStatus: 'manually_entered',
       ));
     });
   }
@@ -184,6 +189,13 @@ class _ExtractedMedicineReviewScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Subtitle
+          Text(
+            'Review the medicines identified in your prescription.',
+            style: t(14, c: C.sub),
+          ),
+          const SizedBox(height: 14),
+
           // 1. Prescription Preview Card
           DawaCard(
             padding: const EdgeInsets.all(14),
@@ -194,8 +206,8 @@ class _ExtractedMedicineReviewScreenState
                   borderRadius: BorderRadius.circular(12),
                   child: Image.memory(
                     widget.imageBytes,
-                    width: 72,
-                    height: 72,
+                    width: 76,
+                    height: 76,
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -207,22 +219,21 @@ class _ExtractedMedicineReviewScreenState
                       Text('Uploaded Prescription',
                           style: t(15.5, w: FontWeight.w700)),
                       const SizedBox(height: 4),
-                      if (widget.doctorName != null || widget.patientName != null) ...[
-                        if (widget.doctorName != null)
-                          Text(widget.doctorName!,
-                              style: t(12.5, c: C.sub)),
-                        if (widget.patientName != null)
-                          Text('Patient: ${widget.patientName!}',
-                              style: t(12, c: C.sub)),
-                      ] else ...[
+                      if (widget.doctorName != null && widget.doctorName!.isNotEmpty)
+                        Text(widget.doctorName!,
+                            style: t(13, w: FontWeight.w600, c: C.indigo)),
+                      if (widget.patientName != null && widget.patientName!.isNotEmpty)
+                        Text('Patient: ${widget.patientName!}',
+                            style: t(12.5, c: C.sub)),
+                      if (widget.prescriptionDate != null && widget.prescriptionDate!.isNotEmpty)
+                        Text('Date: ${widget.prescriptionDate!}',
+                            style: t(11.5, c: C.sub)),
+                      if ((widget.doctorName == null || widget.doctorName!.isEmpty) &&
+                          (widget.patientName == null || widget.patientName!.isEmpty))
                         Text(
                           '${_forms.length} ${_forms.length == 1 ? "medicine" : "medicines"} identified',
                           style: t(12.5, c: C.sub),
                         ),
-                      ],
-                      if (widget.prescriptionDate != null)
-                        Text('Date: ${widget.prescriptionDate!}',
-                            style: t(11.5, c: C.sub)),
                     ],
                   ),
                 ),
@@ -230,31 +241,35 @@ class _ExtractedMedicineReviewScreenState
             ),
           ),
 
-          // 2. Unclear / Needs verification alert if applicable
-          if (widget.isUncertain && widget.uncertaintyReason != null) ...[
+          // 2. Warnings or Alerts if present
+          if (widget.warnings.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFFBEB),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFDE68A)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.info_outline_rounded,
-                      color: Color(0xFFD97706), size: 18),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      widget.uncertaintyReason!,
-                      style: t(12.5, c: const Color(0xFF92400E), h: 1.4),
-                    ),
+            for (final warn in widget.warnings)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFDE68A)),
                   ),
-                ],
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.info_outline_rounded,
+                          color: Color(0xFFD97706), size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          warn,
+                          style: t(12.5, c: const Color(0xFF92400E), h: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
           ],
 
           const SizedBox(height: 18),
@@ -277,7 +292,7 @@ class _ExtractedMedicineReviewScreenState
           // 4. Empty State if no medicines identified
           if (_forms.isEmpty) ...[
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(26),
               decoration: BoxDecoration(
                 color: C.light,
                 borderRadius: BorderRadius.circular(16),
@@ -286,17 +301,17 @@ class _ExtractedMedicineReviewScreenState
               child: Column(
                 children: [
                   const Icon(Icons.medication_outlined,
-                      size: 40, color: C.purple),
-                  const SizedBox(height: 10),
+                      size: 44, color: C.purple),
+                  const SizedBox(height: 12),
                   Text('No medicines recognized',
-                      style: t(15.5, w: FontWeight.w700)),
+                      style: t(16, w: FontWeight.w700)),
                   const SizedBox(height: 6),
                   Text(
-                    'Handwriting or text could not be read clearly. You can add your medicines manually or go back to upload a clearer photo.',
+                    'No readable medicine entries were found on this prescription image. You can manually add your medicines below to find pharmacies, or retake a clearer photo.',
                     textAlign: TextAlign.center,
                     style: t(13, c: C.sub, h: 1.4),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
                   FilledButton.icon(
                     onPressed: _addItem,
                     icon: const Icon(Icons.add_rounded),
@@ -327,8 +342,8 @@ class _ExtractedMedicineReviewScreenState
                   )
                 : const Icon(Icons.search_rounded),
             label: Text(_submitting
-                ? 'Searching Pharmacies...'
-                : 'Confirm Medicines & Find Pharmacies'),
+                ? 'Searching Pharmacy Inventories...'
+                : 'Confirm Medicines & Find Available Pharmacies'),
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
@@ -344,6 +359,8 @@ class _ExtractedMedicineReviewScreenState
 
   Widget _buildMedicineCard(int index) {
     final form = _forms[index];
+    final isManual = form.fieldStatus == 'manually_entered';
+
     return DawaCard(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -355,20 +372,38 @@ class _ExtractedMedicineReviewScreenState
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: C.light,
+                  color: isManual ? const Color(0xFFF1F5F9) : C.light,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
                   child: Text(
                     '${index + 1}',
-                    style: t(14, w: FontWeight.w700, c: C.purple),
+                    style: t(14,
+                        w: FontWeight.w700,
+                        c: isManual ? const Color(0xFF475569) : C.purple),
                   ),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text('Medicine #${index + 1}',
-                    style: t(14.5, w: FontWeight.w700)),
+                child: Row(
+                  children: [
+                    Text('Medicine #${index + 1}',
+                        style: t(14.5, w: FontWeight.w700)),
+                    if (isManual) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text('Manual',
+                            style: t(10.5, w: FontWeight.w600, c: const Color(0xFF64748B))),
+                      ),
+                    ],
+                  ],
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.close_rounded,
@@ -435,8 +470,8 @@ class _ExtractedMedicineReviewScreenState
                 child: TextField(
                   controller: form.instructionsCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'Dosage / Instructions',
-                    hintText: 'e.g. 1 tablet twice daily',
+                    labelText: 'Instructions / Frequency',
+                    hintText: 'e.g. 1 tablet twice daily after meals',
                   ),
                 ),
               ),

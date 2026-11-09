@@ -36,8 +36,8 @@ def test_full_pipeline():
     assert res.status_code == 200, res.text
     ocr_result = res.json()
     presc_id = ocr_result["prescription_id"]
-    extracted = ocr_result["extracted_items"]
-    print(f"[OK] OCR Upload succeeded (ID: {presc_id}). Extracted {len(extracted)} items: {[i['medicine_name'] for i in extracted]}")
+    extracted = ocr_result.get("medicines") or ocr_result.get("extracted_items") or []
+    print(f"[OK] OCR Upload succeeded (ID: {presc_id}). Extracted {len(extracted)} items: {[i.get('original_name', i.get('medicine_name', '')) for i in extracted]}")
 
     # 4. Confirm medicine review & match pharmacies
     confirmed_items = [

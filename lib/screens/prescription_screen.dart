@@ -39,8 +39,8 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _error = source == ImageSource.camera
-          ? 'The camera is not available. Please choose an image from your gallery instead.'
-          : 'Could not open your files. Please try again.');
+          ? 'The camera is not available. Please choose an image from your gallery.'
+          : 'Could not access file. Please try again.');
     }
   }
 
@@ -98,35 +98,29 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
       setState(() => _uploading = false);
 
       final prescriptionId = res['prescription_id'] as int;
-      final ocrRawText = res['ocr_raw_text'] as String? ?? '';
-      final ocrConfidence = (res['ocr_confidence'] as num?)?.toDouble() ?? 0.85;
-      final isUncertain = res['is_uncertain'] as bool? ?? false;
-      final uncertaintyReason = res['uncertainty_reason'] as String?;
-      final patientName = res['patient_name'] as String?;
-      final doctorName = res['doctor_name'] as String?;
-      final prescriptionDate = res['prescription_date'] as String?;
-      final List extractedItems = res['extracted_items'] ?? [];
+      final patient = res['patient'] as Map<String, dynamic>? ?? {};
+      final doctor = res['doctor'] as Map<String, dynamic>? ?? {};
+      final List rawMeds = res['medicines'] ?? [];
+      final List rawWarnings = res['warnings'] ?? [];
 
       push(
         context,
         ExtractedMedicineReviewScreen(
           prescriptionId: prescriptionId,
           imageBytes: _bytes!,
-          ocrRawText: ocrRawText,
-          ocrConfidence: ocrConfidence,
-          isUncertain: isUncertain,
-          uncertaintyReason: uncertaintyReason,
-          patientName: patientName,
-          doctorName: doctorName,
-          prescriptionDate: prescriptionDate,
-          initialItems: extractedItems.cast<Map<String, dynamic>>(),
+          patientName: patient['name'] as String?,
+          patientAge: patient['age'] as String?,
+          doctorName: doctor['name'] as String?,
+          prescriptionDate: patient['date'] as String?,
+          initialMedicines: rawMeds.cast<Map<String, dynamic>>(),
+          warnings: rawWarnings.cast<String>(),
         ),
       );
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _uploading = false;
-        _error = 'Failed to analyze prescription: $e';
+        _error = 'Failed to process prescription: $e';
       });
     }
   }
@@ -164,7 +158,7 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
           const SizedBox(height: 20),
           _guidance(),
           const SizedBox(height: 16),
-          _verificationNotice(),
+          _safetyCallout(),
         ],
       ),
     );
@@ -183,7 +177,7 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
                 style: t(20, w: FontWeight.w800, c: C.indigo)),
             const SizedBox(height: 8),
             Text(
-              'Upload a prescription photo to identify medicines and find pharmacies with stock.',
+              'Upload a prescription photo to identify medicines and check pharmacy stock across Lahore.',
               textAlign: TextAlign.center,
               style: t(14, c: C.sub, h: 1.5),
             ),
@@ -282,7 +276,7 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
             for (final s in const [
               'Place prescription on a flat surface with good lighting.',
               'Ensure medicine names, strengths, and doctor signature are clear.',
-              'Avoid shadows, reflections, or steep angles.',
+              'Avoid heavy shadows, reflections, or steep angles.',
             ])
               Padding(
                 padding: const EdgeInsets.only(top: 6),
@@ -303,7 +297,7 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
         ),
       );
 
-  Widget _verificationNotice() => Container(
+  Widget _safetyCallout() => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: C.light,
