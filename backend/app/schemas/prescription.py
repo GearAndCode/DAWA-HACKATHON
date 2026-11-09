@@ -36,6 +36,11 @@ class OCRResultResponse(BaseModel):
     ocr_confidence: float
     is_uncertain: bool
     uncertainty_reason: Optional[str] = None
+    patient_name: Optional[str] = None
+    patient_age: Optional[str] = None
+    doctor_name: Optional[str] = None
+    clinic_name: Optional[str] = None
+    prescription_date: Optional[str] = None
     extracted_items: List[PrescriptionItemCreate]
 
 class PrescriptionResponse(BaseModel):

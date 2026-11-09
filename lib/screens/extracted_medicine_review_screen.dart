@@ -14,6 +14,9 @@ class ExtractedMedicineReviewScreen extends StatefulWidget {
   final double ocrConfidence;
   final bool isUncertain;
   final String? uncertaintyReason;
+  final String? patientName;
+  final String? doctorName;
+  final String? prescriptionDate;
   final List<Map<String, dynamic>> initialItems;
 
   const ExtractedMedicineReviewScreen({
@@ -24,6 +27,9 @@ class ExtractedMedicineReviewScreen extends StatefulWidget {
     required this.ocrConfidence,
     required this.isUncertain,
     this.uncertaintyReason,
+    this.patientName,
+    this.doctorName,
+    this.prescriptionDate,
     required this.initialItems,
   });
 
@@ -75,7 +81,6 @@ class _ExtractedMedicineReviewScreenState
     extends State<ExtractedMedicineReviewScreen> {
   final List<_MedicineItemForm> _forms = [];
   bool _submitting = false;
-  bool _showRawOcr = false;
 
   @override
   void initState() {
@@ -87,18 +92,11 @@ class _ExtractedMedicineReviewScreenState
           strength: item['strength'] ?? '500 mg',
           form: item['dosage_form'] ?? 'Tablet',
           qty: item['quantity'] is int ? item['quantity'] : 10,
-          instructions: item['instructions'] ?? 'Take after meals',
+          instructions: item['instructions'] ?? 'As directed by physician',
         ));
       }
-    } else {
-      _forms.add(_MedicineItemForm(
-        name: 'Panadol',
-        strength: '500 mg',
-        form: 'Tablet',
-        qty: 10,
-        instructions: '1 tablet twice daily',
-      ));
     }
+    // If no items were detected, leave the form empty so the user can add items manually
   }
 
   @override
@@ -122,7 +120,6 @@ class _ExtractedMedicineReviewScreenState
   }
 
   void _removeItem(int index) {
-    if (_forms.length <= 1) return;
     setState(() {
       _forms.removeAt(index).dispose();
     });
@@ -137,7 +134,7 @@ class _ExtractedMedicineReviewScreenState
     if (validItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please specify at least one valid medicine name.'),
+          content: Text('Please add at least one medicine before searching pharmacies.'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -183,21 +180,22 @@ class _ExtractedMedicineReviewScreenState
   @override
   Widget build(BuildContext context) {
     return PageScaffold(
-      title: 'Review Extracted Medicines',
+      title: 'Prescription Details',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Prescription Image & OCR Confidence Badge
+          // 1. Prescription Preview Card
           DawaCard(
             padding: const EdgeInsets.all(14),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: Image.memory(
                     widget.imageBytes,
-                    width: 68,
-                    height: 68,
+                    width: 72,
+                    height: 72,
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -206,45 +204,25 @@ class _ExtractedMedicineReviewScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('AI Prescription OCR Scan',
+                      Text('Uploaded Prescription',
                           style: t(15.5, w: FontWeight.w700)),
                       const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: widget.isUncertain
-                                  ? const Color(0xFFFEF3C7)
-                                  : const Color(0xFFDCFCE7),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              'Confidence: ${(widget.ocrConfidence * 100).toInt()}%',
-                              style: t(11.5,
-                                  w: FontWeight.w700,
-                                  c: widget.isUncertain
-                                      ? const Color(0xFFB45309)
-                                      : const Color(0xFF15803D)),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          TextButton(
-                            style: TextButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                                minimumSize: Size.zero),
-                            onPressed: () {
-                              setState(() => _showRawOcr = !_showRawOcr);
-                            },
-                            child: Text(
-                              _showRawOcr ? 'Hide raw OCR' : 'View raw OCR',
-                              style: t(12,
-                                  w: FontWeight.w600, c: C.purple),
-                            ),
-                          ),
-                        ],
-                      ),
+                      if (widget.doctorName != null || widget.patientName != null) ...[
+                        if (widget.doctorName != null)
+                          Text(widget.doctorName!,
+                              style: t(12.5, c: C.sub)),
+                        if (widget.patientName != null)
+                          Text('Patient: ${widget.patientName!}',
+                              style: t(12, c: C.sub)),
+                      ] else ...[
+                        Text(
+                          '${_forms.length} ${_forms.length == 1 ? "medicine" : "medicines"} identified',
+                          style: t(12.5, c: C.sub),
+                        ),
+                      ],
+                      if (widget.prescriptionDate != null)
+                        Text('Date: ${widget.prescriptionDate!}',
+                            style: t(11.5, c: C.sub)),
                     ],
                   ),
                 ),
@@ -252,47 +230,26 @@ class _ExtractedMedicineReviewScreenState
             ),
           ),
 
-          if (_showRawOcr) ...[
-            const SizedBox(height: 10),
+          // 2. Unclear / Needs verification alert if applicable
+          if (widget.isUncertain && widget.uncertaintyReason != null) ...[
+            const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF1F2937),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                widget.ocrRawText.isEmpty
-                    ? '(No OCR text extracted)'
-                    : widget.ocrRawText,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                  color: Color(0xFFE5E7EB),
-                ),
-              ),
-            ),
-          ],
-
-          if (widget.isUncertain) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
                 color: const Color(0xFFFFFBEB),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFFFDE68A)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      color: Color(0xFFD97706), size: 22),
+                  const Icon(Icons.info_outline_rounded,
+                      color: Color(0xFFD97706), size: 18),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      widget.uncertaintyReason ??
-                          'Prescription handwriting or text is partially unclear. Please verify and correct fields below.',
-                      style: t(13, c: const Color(0xFF92400E), h: 1.4),
+                      widget.uncertaintyReason!,
+                      style: t(12.5, c: const Color(0xFF92400E), h: 1.4),
                     ),
                   ),
                 ],
@@ -300,12 +257,14 @@ class _ExtractedMedicineReviewScreenState
             ),
           ],
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
+
+          // 3. Section Header
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Detected Medicines',
-                  style: t(18, w: FontWeight.w800, c: C.indigo)),
+              Text('Medicines (${_forms.length})',
+                  style: t(17, w: FontWeight.w800)),
               TextButton.icon(
                 onPressed: _addItem,
                 icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
@@ -315,32 +274,48 @@ class _ExtractedMedicineReviewScreenState
           ),
           const SizedBox(height: 8),
 
-          for (int i = 0; i < _forms.length; i++)
-            _buildMedicineCard(i, _forms[i]),
-
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: C.light,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.shield_outlined,
-                    color: C.purple, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Safety Notice: A licensed pharmacist will verify this prescription prior to dispensing.',
-                    style: t(12, c: C.indigo),
+          // 4. Empty State if no medicines identified
+          if (_forms.isEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: C.light,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: C.border),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.medication_outlined,
+                      size: 40, color: C.purple),
+                  const SizedBox(height: 10),
+                  Text('No medicines recognized',
+                      style: t(15.5, w: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Handwriting or text could not be read clearly. You can add your medicines manually or go back to upload a clearer photo.',
+                    textAlign: TextAlign.center,
+                    style: t(13, c: C.sub, h: 1.4),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _addItem,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Add Medicine Manually'),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
+
+          // 5. Medicine Edit Cards
+          for (int i = 0; i < _forms.length; i++) ...[
+            _buildMedicineCard(i),
+            const SizedBox(height: 12),
+          ],
+
           const SizedBox(height: 20),
 
+          // 6. Action Buttons
           FilledButton.icon(
             onPressed: _submitting ? null : _confirmAndMatch,
             icon: _submitting
@@ -352,8 +327,14 @@ class _ExtractedMedicineReviewScreenState
                   )
                 : const Icon(Icons.search_rounded),
             label: Text(_submitting
-                ? 'Searching Pharmacy Inventories...'
-                : 'Confirm & Find Available Pharmacies'),
+                ? 'Searching Pharmacies...'
+                : 'Confirm Medicines & Find Pharmacies'),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Rescan Prescription'),
           ),
           const SizedBox(height: 24),
         ],
@@ -361,127 +342,107 @@ class _ExtractedMedicineReviewScreenState
     );
   }
 
-  Widget _buildMedicineCard(int index, _MedicineItemForm form) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: DawaCard(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: const BoxDecoration(
-                    color: C.purple,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${index + 1}',
-                      style: t(13, w: FontWeight.w700, c: Colors.white),
-                    ),
-                  ),
+  Widget _buildMedicineCard(int index) {
+    final form = _forms[index];
+    return DawaCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: C.light,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(width: 10),
-                Text('Medicine #${index + 1}',
-                    style: t(15, w: FontWeight.w700)),
-                const Spacer(),
-                if (_forms.length > 1)
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded,
-                        color: Colors.redAccent, size: 20),
-                    onPressed: () => _removeItem(index),
+                child: Center(
+                  child: Text(
+                    '${index + 1}',
+                    style: t(14, w: FontWeight.w700, c: C.purple),
                   ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: form.nameCtrl,
-              decoration: InputDecoration(
-                labelText: 'Medicine Name',
-                hintText: 'e.g. Panadol, Augmentin',
-                filled: true,
-                fillColor: C.bg,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: C.border),
                 ),
               ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('Medicine #${index + 1}',
+                    style: t(14.5, w: FontWeight.w700)),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close_rounded,
+                    size: 20, color: Color(0xFFEF4444)),
+                onPressed: () => _removeItem(index),
+                tooltip: 'Remove',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Name Field
+          TextField(
+            controller: form.nameCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Medicine Name',
+              hintText: 'e.g. Augmentin, Panadol, Brufen',
+              prefixIcon: Icon(Icons.medication_liquid_outlined),
             ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextField(
-                    controller: form.strengthCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'Strength',
-                      hintText: '500 mg',
-                      filled: true,
-                      fillColor: C.bg,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: C.border),
-                      ),
-                    ),
+          ),
+          const SizedBox(height: 10),
+
+          // Strength & Dosage Form
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: form.strengthCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Strength',
+                    hintText: 'e.g. 500 mg, 625 mg',
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 2,
-                  child: TextField(
-                    controller: form.formCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'Dosage Form',
-                      hintText: 'Tablet / Syrup',
-                      filled: true,
-                      fillColor: C.bg,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: C.border),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 1,
-                  child: TextField(
-                    controller: form.qtyCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'Qty',
-                      filled: true,
-                      fillColor: C.bg,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: C.border),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: form.instructionsCtrl,
-              decoration: InputDecoration(
-                labelText: 'Instructions / Frequency',
-                hintText: 'e.g. 1 tablet twice daily after meals',
-                filled: true,
-                fillColor: C.bg,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: C.border),
                 ),
               ),
-            ),
-          ],
-        ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: form.formCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Form',
+                    hintText: 'Tablet, Syrup, Capsule',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Quantity & Instructions
+          Row(
+            children: [
+              SizedBox(
+                width: 90,
+                child: TextField(
+                  controller: form.qtyCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Qty',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: form.instructionsCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Dosage / Instructions',
+                    hintText: 'e.g. 1 tablet twice daily',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

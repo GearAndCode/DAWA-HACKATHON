@@ -25,8 +25,8 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
     try {
       final x = await _picker.pickImage(
         source: source,
-        maxWidth: 2200,
-        imageQuality: 88,
+        maxWidth: 2400,
+        imageQuality: 90,
       );
       if (x == null) return;
       final b = await x.readAsBytes();
@@ -39,7 +39,7 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _error = source == ImageSource.camera
-          ? 'The camera is not available here. Please choose an image from your gallery instead.'
+          ? 'The camera is not available. Please choose an image from your gallery instead.'
           : 'Could not open your files. Please try again.');
     }
   }
@@ -50,7 +50,7 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
       backgroundColor: Colors.white,
       constraints: const BoxConstraints(maxWidth: 560),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => SafeArea(
         child: Padding(
@@ -82,7 +82,7 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
     );
   }
 
-  Future<void> _processOcr() async {
+  Future<void> _processPrescription() async {
     if (_bytes == null) return;
 
     setState(() {
@@ -102,6 +102,9 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
       final ocrConfidence = (res['ocr_confidence'] as num?)?.toDouble() ?? 0.85;
       final isUncertain = res['is_uncertain'] as bool? ?? false;
       final uncertaintyReason = res['uncertainty_reason'] as String?;
+      final patientName = res['patient_name'] as String?;
+      final doctorName = res['doctor_name'] as String?;
+      final prescriptionDate = res['prescription_date'] as String?;
       final List extractedItems = res['extracted_items'] ?? [];
 
       push(
@@ -113,6 +116,9 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
           ocrConfidence: ocrConfidence,
           isUncertain: isUncertain,
           uncertaintyReason: uncertaintyReason,
+          patientName: patientName,
+          doctorName: doctorName,
+          prescriptionDate: prescriptionDate,
           initialItems: extractedItems.cast<Map<String, dynamic>>(),
         ),
       );
@@ -120,7 +126,7 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
       if (!mounted) return;
       setState(() {
         _uploading = false;
-        _error = 'Failed to analyze prescription with AI OCR: $e';
+        _error = 'Failed to analyze prescription: $e';
       });
     }
   }
@@ -156,9 +162,9 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
             ),
           ],
           const SizedBox(height: 20),
-          _tips(),
+          _guidance(),
           const SizedBox(height: 16),
-          _safetyCallout(),
+          _verificationNotice(),
         ],
       ),
     );
@@ -171,17 +177,17 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
         child: Column(
           children: [
             const IconChip(Icons.document_scanner_outlined,
-                size: 72, bg: Colors.white),
-            const SizedBox(height: 18),
-            Text('Scan Your Prescription',
-                style: t(21, w: FontWeight.w800, c: C.indigo)),
+                size: 68, bg: Colors.white),
+            const SizedBox(height: 16),
+            Text('Scan Prescription',
+                style: t(20, w: FontWeight.w800, c: C.indigo)),
             const SizedBox(height: 8),
             Text(
-              'Upload a clear photo. DAWA AI extracts medicines and checks stock across nearby pharmacies.',
+              'Upload a prescription photo to identify medicines and find pharmacies with stock.',
               textAlign: TextAlign.center,
               style: t(14, c: C.sub, h: 1.5),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 22),
             FilledButton.icon(
               onPressed: () => _pick(ImageSource.camera),
               icon: const Icon(Icons.photo_camera_outlined),
@@ -204,13 +210,13 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
             constraints: const BoxConstraints(maxHeight: 400),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(18),
               border: Border.all(color: C.border),
               boxShadow: softShadow,
             ),
             padding: const EdgeInsets.all(12),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(12),
               child: Image.memory(_bytes!, fit: BoxFit.contain),
             ),
           ),
@@ -221,7 +227,7 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
                 child: OutlinedButton.icon(
                   onPressed: _uploading ? null : _chooseSource,
                   icon: const Icon(Icons.swap_horiz_rounded),
-                  label: const Text('Replace'),
+                  label: const Text('Replace Image'),
                 ),
               ),
               const SizedBox(width: 12),
@@ -241,7 +247,7 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
           ),
           const SizedBox(height: 14),
           FilledButton.icon(
-            onPressed: _uploading ? null : _processOcr,
+            onPressed: _uploading ? null : _processPrescription,
             icon: _uploading
                 ? const SizedBox(
                     width: 20,
@@ -249,15 +255,15 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
                     child: CircularProgressIndicator(
                         color: Colors.white, strokeWidth: 2),
                   )
-                : const Icon(Icons.auto_awesome_rounded),
+                : const Icon(Icons.arrow_forward_rounded),
             label: Text(_uploading
-                ? 'Processing AI OCR...'
-                : 'Extract Medicines with AI OCR'),
+                ? 'Processing Prescription...'
+                : 'Read Prescription Details'),
           ),
         ],
       );
 
-  Widget _tips() => DawaCard(
+  Widget _guidance() => DawaCard(
         shadow: false,
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -268,15 +274,15 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
                 const Icon(Icons.lightbulb_outline_rounded,
                     color: C.purple, size: 20),
                 const SizedBox(width: 8),
-                Text('For best OCR recognition',
+                Text('Prescription photo tips',
                     style: t(15, w: FontWeight.w700)),
               ],
             ),
             const SizedBox(height: 10),
             for (final s in const [
-              'Place prescription on a flat surface in good lighting.',
-              'Ensure doctor signature, medicine names and dosage are readable.',
-              'Hold phone steady to avoid blurriness or glare.',
+              'Place prescription on a flat surface with good lighting.',
+              'Ensure medicine names, strengths, and doctor signature are clear.',
+              'Avoid shadows, reflections, or steep angles.',
             ])
               Padding(
                 padding: const EdgeInsets.only(top: 6),
@@ -297,7 +303,7 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
         ),
       );
 
-  Widget _safetyCallout() => Container(
+  Widget _verificationNotice() => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: C.light,
@@ -311,7 +317,7 @@ class _PrescriptionScreenState extends State<PrescriptionScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Safety First: OCR only assists with extraction. A licensed pharmacist verifies all prescriptions before any medicine is fulfilled.',
+                'Healthcare Notice: Prescriptions are automatically read for your convenience. All orders are reviewed and verified by a licensed pharmacist before dispensing.',
                 style: t(12.5, c: C.indigo, h: 1.4),
               ),
             ),

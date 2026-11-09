@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.prescription import Prescription, PrescriptionItem
 from app.schemas.prescription import OCRResultResponse
-from app.services.ocr_service import run_ocr_on_image, parse_prescription_text
+from app.services.ocr_service import run_genuine_ocr, parse_prescription_text, extract_metadata
 from app.core.config import settings
 
 router = APIRouter(prefix="/ocr", tags=["Prescription OCR"])
@@ -17,38 +17,42 @@ async def upload_prescription(
     db: Session = Depends(get_db)
 ):
     """
-    Accepts an uploaded prescription image.
-    Validates file format.
-    Saves image securely.
-    Runs genuine OCR.
-    Extracts structured medicine list.
-    Returns OCR text and extracted items for patient review.
+    Accepts an actual uploaded prescription image or PDF.
+    Validates file format and size.
+    Saves image to uploads folder.
+    Runs genuine multi-engine OCR extraction.
+    Parses medicine details and patient/doctor metadata from the actual image.
+    Never returns hardcoded or fabricated medicine defaults.
     """
-    # Validate extension
     ext = os.path.splitext(file.filename or "")[1].lower()
-    if ext not in [".jpg", ".jpeg", ".png", ".webp"]:
-        raise HTTPException(status_code=400, detail="Invalid image format. Supported formats: JPG, PNG, WEBP.")
+    if ext not in [".jpg", ".jpeg", ".png", ".webp", ".pdf"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported format. Please upload JPG, PNG, WEBP, or PDF."
+        )
 
-    # Unique secure file name
     filename = f"{uuid.uuid4().hex}{ext}"
     filepath = os.path.join(settings.UPLOAD_DIR, filename)
 
     contents = await file.read()
     if len(contents) == 0:
-        raise HTTPException(status_code=400, detail="Empty file uploaded.")
-    if len(contents) > 15 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File too large (maximum 15MB allowed).")
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    if len(contents) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 20MB allowed).")
 
     with open(filepath, "wb") as f:
         f.write(contents)
 
-    # Run genuine OCR
-    raw_ocr_text, ocr_confidence = run_ocr_on_image(filepath)
+    # Run genuine OCR on the saved file
+    raw_ocr_text, ocr_confidence = run_genuine_ocr(filepath)
 
-    # Parse medicine details
+    # Extract metadata from text
+    metadata = extract_metadata(raw_ocr_text)
+
+    # Parse medicine details from the real OCR text
     items, is_uncertain, uncertainty_reason = parse_prescription_text(raw_ocr_text)
 
-    # Save initial prescription record in SQLite
+    # Save prescription in SQLite database
     db_prescription = Prescription(
         patient_id=patient_id,
         image_path=filename,
@@ -83,5 +87,10 @@ async def upload_prescription(
         ocr_confidence=round(ocr_confidence, 2),
         is_uncertain=is_uncertain,
         uncertainty_reason=uncertainty_reason,
+        patient_name=metadata.get("patient_name"),
+        patient_age=metadata.get("patient_age"),
+        doctor_name=metadata.get("doctor_name"),
+        clinic_name=metadata.get("clinic_name"),
+        prescription_date=metadata.get("prescription_date"),
         extracted_items=items
     )

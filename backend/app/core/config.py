@@ -9,7 +9,9 @@ class Settings(BaseModel):
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads"
     )
     DEFAULT_DELIVERY_FEE: float = 150.0  # PKR
-    DEMO_ADMIN_KEY: str = "dawa-pharmacist-demo-2026"
+    DEMO_ADMIN_KEY: str = os.getenv("DEMO_ADMIN_KEY", "dawa-pharmacist-demo-2026")
+    OCR_SPACE_API_KEY: str = os.getenv("OCR_SPACE_API_KEY", "helloworld")
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 
 settings = Settings()
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
