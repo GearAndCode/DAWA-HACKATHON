@@ -372,7 +372,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                   boxShadow: isCurrent
                       ? [
                           BoxShadow(
-                              color: C.purple.withOpacity(0.35),
+                              color: C.purple.withValues(alpha: 0.35),
                               blurRadius: 8,
                               spreadRadius: 2)
                         ]

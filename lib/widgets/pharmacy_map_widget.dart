@@ -156,7 +156,7 @@ class _PharmacyMapWidgetState extends State<PharmacyMapWidget>
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.65),
+                      color: Colors.black.withValues(alpha: 0.65),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.white12),
                     ),
@@ -178,7 +178,7 @@ class _PharmacyMapWidgetState extends State<PharmacyMapWidget>
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: C.green.withOpacity(0.85),
+                      color: C.green.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
@@ -377,7 +377,7 @@ class _MapCanvasPainter extends CustomPainter {
 
     // Subtle concentric radar range rings
     final ringPaint = Paint()
-      ..color = const Color(0xFF4338CA).withOpacity(0.35)
+      ..color = const Color(0xFF4338CA).withValues(alpha: 0.35)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
 
@@ -388,14 +388,14 @@ class _MapCanvasPainter extends CustomPainter {
     // Glowing pulsing range wave
     final pulseRadius = 30.0 + (pulse * 90.0);
     final pulsePaint = Paint()
-      ..color = const Color(0xFF8B5CF6).withOpacity((1.0 - pulse) * 0.35)
+      ..color = const Color(0xFF8B5CF6).withValues(alpha: (1.0 - pulse) * 0.35)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
     canvas.drawCircle(center, pulseRadius, pulsePaint);
 
     // Crosshairs
     final crosshairPaint = Paint()
-      ..color = Colors.white.withOpacity(0.08)
+      ..color = Colors.white.withValues(alpha: 0.08)
       ..strokeWidth = 1;
     canvas.drawLine(Offset(cx, 0), Offset(cx, size.height), crosshairPaint);
     canvas.drawLine(Offset(0, cy), Offset(size.width, cy), crosshairPaint);
