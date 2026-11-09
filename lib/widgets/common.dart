@@ -117,13 +117,15 @@ class DawaCard extends StatelessWidget {
   final Color color;
   final EdgeInsets padding;
   final bool shadow;
+  final BoxBorder? border;
   const DawaCard(
       {super.key,
       required this.child,
       this.onTap,
       this.color = Colors.white,
       this.padding = const EdgeInsets.all(18),
-      this.shadow = true});
+      this.shadow = true,
+      this.border});
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +133,7 @@ class DawaCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: C.border),
+        border: border ?? Border.all(color: C.border),
         boxShadow: shadow ? softShadow : null,
       ),
       child: Material(

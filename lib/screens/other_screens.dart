@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../data/demo_data.dart';
 import '../navigation/nav.dart';
+import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import 'prescription_screen.dart';
+import 'order_tracking_screen.dart';
+import 'pharmacist_admin_screen.dart';
 
 class MedicinesScreen extends StatelessWidget {
   const MedicinesScreen({super.key});
@@ -189,45 +192,109 @@ class ExploreScreen extends StatelessWidget {
       );
 }
 
-class OrdersScreen extends StatelessWidget {
+class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
+
+  @override
+  State<OrdersScreen> createState() => _OrdersScreenState();
+}
+
+class _OrdersScreenState extends State<OrdersScreen> {
+  List<Map<String, dynamic>> _orders = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchOrders();
+  }
+
+  Future<void> _fetchOrders() async {
+    setState(() => _loading = true);
+    try {
+      final list = await ApiService.instance.getOrders();
+      if (mounted) {
+        setState(() {
+          _orders = list;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(22, 18, 22, 32),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('Orders', style: t(28, w: FontWeight.w800, c: C.indigo)),
-          const SizedBox(height: 4),
-          Text('Your orders and prescription submissions.', style: t(14, c: C.sub)),
-          const SizedBox(height: 10),
-          const EmptyState(Icons.inventory_2_outlined, 'No orders yet',
-              'Ordering and delivery tracking are not live in this demo version.'),
-          Text('Prescription submissions', style: t(17, w: FontWeight.w700)),
-          const SizedBox(height: 10),
-          ValueListenableBuilder<List<PrescriptionRecord>>(
-            valueListenable: prescriptionRecords,
-            builder: (context, list, _) => list.isEmpty
-                ? Text('None yet.', style: t(14, c: C.sub))
-                : Column(children: [
-                    for (final r in list)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: DawaCard(
-                          shadow: false,
-                          padding: const EdgeInsets.all(14),
-                          child: Row(children: [
-                            const IconChip(Icons.description_outlined),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(r.items.join(', '), maxLines: 2, overflow: TextOverflow.ellipsis, style: t(14.5, w: FontWeight.w600)),
-                                Text('Saved on device (demo)', style: t(12.5, c: C.sub)),
-                              ]),
-                            ),
-                          ]),
-                        ),
-                      ),
-                  ]),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Orders', style: t(28, w: FontWeight.w800, c: C.indigo)),
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded, color: C.purple),
+                onPressed: _fetchOrders,
+              ),
+            ],
           ),
+          const SizedBox(height: 4),
+          Text('Your prescription orders and live status tracking.', style: t(14, c: C.sub)),
+          const SizedBox(height: 16),
+          if (_loading)
+            const Center(child: Padding(padding: EdgeInsets.all(30), child: CircularProgressIndicator()))
+          else if (_orders.isEmpty)
+            const EmptyState(Icons.inventory_2_outlined, 'No active orders',
+                'When you upload a prescription and confirm an invoice, your tracked order will appear here.')
+          else
+            for (final o in _orders)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: DawaCard(
+                  padding: const EdgeInsets.all(16),
+                  onTap: () => push(context, OrderTrackingScreen(order: o)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(o['order_number'] ?? 'DAWA-2026-0001',
+                              style: t(15.5, w: FontWeight.w800, c: C.indigo)),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: C.light,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              o['status'] ?? 'Order Placed',
+                              style: t(11, w: FontWeight.w700, c: C.purple),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text('${o['pharmacy_name']} • ${o['fulfillment_type']?.toString().toUpperCase()}',
+                          style: t(13, c: C.sub)),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Total: PKR ${(o['total_amount'] as num?)?.toStringAsFixed(0) ?? '0'}',
+                              style: t(14, w: FontWeight.w700, c: C.text)),
+                          Row(
+                            children: [
+                              Text('Track Order', style: t(13, w: FontWeight.w700, c: C.purple)),
+                              const Icon(Icons.chevron_right_rounded, size: 18, color: C.purple),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
         ]),
       );
 }
@@ -264,6 +331,7 @@ class ProfileScreen extends StatelessWidget {
         builder: (_, l, __) => _tile(Icons.location_on_outlined, 'Delivery location', '${l.label}, ${l.address}', null),
       ),
       _tile(Icons.description_outlined, 'My Prescriptions', 'View saved prescriptions', () => push(context, const MyPrescriptionsScreen())),
+      _tile(Icons.admin_panel_settings_rounded, 'Pharmacist Demo Interface', 'Verify prescriptions and update order milestones', () => push(context, const PharmacistAdminScreen())),
       _tile(Icons.notifications_none_rounded, 'Notifications', 'View updates', () => push(context, const NotificationsScreen())),
       _tile(Icons.verified_user_outlined, 'Safety', 'Prescription orders should be reviewed by a qualified pharmacist.', null),
       _tile(Icons.info_outline_rounded, 'About DAWA', 'Connecting You to Better Healthcare. Demo version 1.0.0', null),

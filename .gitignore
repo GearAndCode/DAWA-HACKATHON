@@ -1,0 +1,18 @@
+# Flutter / Dart build artifacts
+.dart_tool/
+build/
+.flutter-plugins-dependencies
+
+# Backend virtual environment, database & uploads
+backend/venv/
+backend/uploads/
+*.db
+*.sqlite3
+__pycache__/
+*.pyc
+.env
+
+# IDE / Editor
+.idea/
+.vscode/
+*.iml
