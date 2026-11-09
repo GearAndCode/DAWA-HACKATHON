@@ -20,47 +20,28 @@ class AppShell extends StatelessWidget {
       valueListenable: tabIndex,
       builder: (context, index, _) {
         return Scaffold(
+          backgroundColor: C.bg,
           body: SafeArea(
             bottom: false,
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1000),
-                child: IndexedStack(index: index, children: const [
-                  HomeScreen(),
-                  ExploreScreen(),
-                  OrdersScreen(),
-                  ProfileScreen(embedded: true),
-                ]),
-              ),
-            ),
-          ),
-          bottomNavigationBar: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: C.border)),
-              boxShadow: [BoxShadow(color: Color(0x0F312E81), blurRadius: 16, offset: Offset(0, -4))],
-            ),
-            child: SafeArea(
-              top: false,
-              child: Center(
-                heightFactor: 1,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1000),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: Row(children: [
-                      for (int i = 0; i < _items.length; i++)
-                        Expanded(child: _NavItem(
-                          icon: index == i ? _items[i].$2 : _items[i].$1,
-                          label: _items[i].$3,
-                          active: index == i,
-                          onTap: () => tabIndex.value = i,
-                        )),
-                    ]),
-                  ),
+                constraints: const BoxConstraints(maxWidth: 1080),
+                child: IndexedStack(
+                  index: index,
+                  children: const [
+                    HomeScreen(),
+                    ExploreScreen(),
+                    OrdersScreen(),
+                    ProfileScreen(embedded: true),
+                  ],
                 ),
               ),
             ),
+          ),
+          bottomNavigationBar: _LuxuryFloatingNavBar(
+            currentIndex: index,
+            items: _items,
+            onTap: (newIndex) => tabIndex.value = newIndex,
           ),
         );
       },
@@ -68,35 +49,125 @@ class AppShell extends StatelessWidget {
   }
 }
 
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-  const _NavItem({required this.icon, required this.label, required this.active, required this.onTap});
+class _LuxuryFloatingNavBar extends StatelessWidget {
+  final int currentIndex;
+  final List<(IconData, IconData, String)> items;
+  final ValueChanged<int> onTap;
+
+  const _LuxuryFloatingNavBar({
+    required this.currentIndex,
+    required this.items,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOut,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+    return SafeArea(
+      top: false,
+      child: Center(
+        heightFactor: 1.0,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 820),
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(18, 0, 18, 12),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: active ? C.light : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: const Color(0xFFE9E6F0),
+                width: 1.0,
+              ),
+              boxShadow: DawaShadows.navBar,
             ),
-            child: Icon(icon, size: 24, color: active ? C.purple : C.sub),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                for (int i = 0; i < items.length; i++)
+                  _LuxuryNavItem(
+                    inactiveIcon: items[i].$1,
+                    activeIcon: items[i].$2,
+                    label: items[i].$3,
+                    isActive: currentIndex == i,
+                    onTap: () => onTap(i),
+                  ),
+              ],
+            ),
           ),
-          const SizedBox(height: 2),
-          Text(label,
-              style: t(12, w: active ? FontWeight.w700 : FontWeight.w500, c: active ? C.purple : C.sub)),
-        ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _LuxuryNavItem extends StatelessWidget {
+  final IconData inactiveIcon;
+  final IconData activeIcon;
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _LuxuryNavItem({
+    required this.inactiveIcon,
+    required this.activeIcon,
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.symmetric(
+          horizontal: isActive ? 16 : 14,
+          vertical: 8,
+        ),
+        decoration: BoxDecoration(
+          color: isActive ? C.light : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: isActive
+              ? Border.all(
+                  color: C.purple.withValues(alpha: 0.25),
+                  width: 1.0,
+                )
+              : Border.all(color: Colors.transparent),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedScale(
+              scale: isActive ? 1.08 : 1.0,
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeOutBack,
+              child: Icon(
+                isActive ? activeIcon : inactiveIcon,
+                size: 21,
+                color: isActive ? C.purple : C.sub,
+              ),
+            ),
+            if (isActive) ...[
+              const SizedBox(width: 8),
+              AnimatedOpacity(
+                opacity: isActive ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 220),
+                child: Text(
+                  label,
+                  style: t(
+                    12.5,
+                    w: FontWeight.w700,
+                    c: C.purple,
+                    ls: 0.1,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

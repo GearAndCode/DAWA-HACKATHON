@@ -7,25 +7,32 @@ import '../widgets/common.dart';
 import 'pharmacist_admin_screen.dart';
 
 class OrderTrackingScreen extends StatefulWidget {
-  final Map<String, dynamic> order;
+  final Map<String, dynamic>? order;
+  final int? orderId;
 
-  const OrderTrackingScreen({super.key, required this.order});
+  const OrderTrackingScreen({super.key, this.order, this.orderId})
+      : assert(order != null || orderId != null);
 
   @override
   State<OrderTrackingScreen> createState() => _OrderTrackingScreenState();
 }
 
 class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
-  late Map<String, dynamic> _currentOrder;
+  Map<String, dynamic>? _currentOrder;
   Timer? _pollingTimer;
   bool _isRefreshing = false;
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _currentOrder = widget.order;
-    // Auto-poll order updates from backend every 5 seconds
-    _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) => _refreshOrder());
+    if (widget.order != null) {
+      _currentOrder = widget.order;
+      _loading = false;
+    }
+    _loadOrder();
+    _pollingTimer =
+        Timer.periodic(const Duration(seconds: 4), (_) => _refreshOrder());
   }
 
   @override
@@ -34,10 +41,27 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     super.dispose();
   }
 
-  Future<void> _refreshOrder() async {
-    final orderId = _currentOrder['id'] as int;
+  Future<void> _loadOrder() async {
+    final id = widget.orderId ?? (_currentOrder != null ? _currentOrder!['id'] as int : null);
+    if (id == null) return;
     try {
-      final updated = await ApiService.instance.getOrderDetails(orderId);
+      final updated = await ApiService.instance.getOrderDetails(id);
+      if (mounted) {
+        setState(() {
+          _currentOrder = updated;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _refreshOrder() async {
+    if (_currentOrder == null) return;
+    final id = _currentOrder!['id'] as int;
+    try {
+      final updated = await ApiService.instance.getOrderDetails(id);
       if (mounted) {
         setState(() => _currentOrder = updated);
       }
@@ -57,24 +81,55 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final orderNumber = _currentOrder['order_number'] ?? 'DAWA-2026-0001';
-    final status = _currentOrder['status'] ?? 'Order Placed';
-    final fulfillmentType = _currentOrder['fulfillment_type'] ?? 'pickup';
+    if (_loading || _currentOrder == null) {
+      return const PageScaffold(
+        title: 'Order Status Tracking',
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(40),
+            child: CircularProgressIndicator(color: C.purple, strokeWidth: 2.5),
+          ),
+        ),
+      );
+    }
+
+    final orderNumber = _currentOrder!['order_reference'] ?? _currentOrder!['order_number'] ?? 'DAWA-2026-0001';
+    final status = _currentOrder!['order_status'] ?? _currentOrder!['status'] ?? 'Order Placed';
+    final fulfillmentType = _currentOrder!['fulfillment_method'] ?? _currentOrder!['fulfillment_type'] ?? 'pickup';
     final isPickup = fulfillmentType == 'pickup';
-    final totalAmount = (_currentOrder['total_amount'] as num?)?.toDouble() ?? 0.0;
-    final pharmacyName = _currentOrder['pharmacy_name'] ?? 'DAWA Pharmacy';
-    final pharmacyAddress = _currentOrder['pharmacy_address'] ?? 'Lahore';
-    final deliveryAddress = _currentOrder['delivery_address'];
+    final pharmacyName = _currentOrder!['pharmacy_name'] ?? 'DAWA Partner Pharmacy';
     final isRejected = status.contains('Rejected');
     final activeStageIndex = _getStageIndex(status, isPickup);
+    final List history = _currentOrder!['timeline'] ?? _currentOrder!['status_history'] ?? [];
+
+    final deliveryStages = [
+      ('Order Placed', 'Order received and logged in system'),
+      ('Awaiting Pharmacist Verification', 'Pharmacist reviewing prescription details'),
+      ('Prescription Verified', 'Prescription and dosage verified'),
+      ('Preparing Order', 'Medicines packed and sealed with security tag'),
+      ('Out for Delivery', 'Rider dispatched to your address in Lahore'),
+      ('Delivered', 'Order safely received by patient'),
+    ];
+
+    final pickupStages = [
+      ('Order Placed', 'Order received and logged in system'),
+      ('Awaiting Pharmacist Verification', 'Pharmacist reviewing prescription details'),
+      ('Prescription Verified', 'Prescription and dosage verified'),
+      ('Preparing Order', 'Medicines packed and kept in pickup bay'),
+      ('Ready for Pickup', 'Available at counter for immediate collection'),
+      ('Collected', 'Order collected at pharmacy counter'),
+    ];
+
+    final stages = isPickup ? pickupStages : deliveryStages;
 
     return PageScaffold(
       title: 'Order Status Tracking',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Order Header Card
-          DawaCard(
+          // 1. Order Meta Card with Ambient Glow
+          DawaSurface(
+            hasGlow: true,
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,15 +140,12 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('ORDER NUMBER',
+                        Text('ORDER REFERENCE',
                             style: t(11.5,
-                                w: FontWeight.w800,
-                                c: C.purple,
-                                ls: 1.5)),
+                                w: FontWeight.w800, c: C.purple, ls: 1.2)),
                         const SizedBox(height: 2),
                         Text(orderNumber,
-                            style: t(18,
-                                w: FontWeight.w800, c: C.indigo)),
+                            style: t(18.5, w: FontWeight.w800, c: C.indigo)),
                       ],
                     ),
                     IconButton(
@@ -105,6 +157,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                                   strokeWidth: 2, color: C.purple),
                             )
                           : const Icon(Icons.refresh_rounded, color: C.purple),
+                      tooltip: 'Refresh Status',
                       onPressed: () async {
                         setState(() => _isRefreshing = true);
                         await _refreshOrder();
@@ -113,214 +166,106 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                     ),
                   ],
                 ),
-                const Divider(height: 22, color: C.border),
+                const SizedBox(height: 14),
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: isRejected
-                            ? const Color(0xFFFEE2E2)
-                            : (status.contains('Delivered') || status.contains('Collected')
-                                ? const Color(0xFFDCFCE7)
-                                : C.light),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        status.toUpperCase(),
-                        style: t(11.5,
-                            w: FontWeight.w700,
-                            c: isRejected
-                                ? const Color(0xFFDC2626)
-                                : (status.contains('Delivered') || status.contains('Collected')
-                                    ? const Color(0xFF15803D)
-                                    : C.purple)),
-                      ),
+                    Icon(
+                      isPickup
+                          ? Icons.storefront_rounded
+                          : Icons.local_shipping_rounded,
+                      size: 16,
+                      color: C.purple,
                     ),
-                    const Spacer(),
-                    Text('PKR ${totalAmount.toStringAsFixed(0)}',
-                        style: t(17, w: FontWeight.w800, c: C.indigo)),
+                    const SizedBox(width: 8),
+                    Text(
+                      isPickup
+                          ? 'Pharmacy Pickup at $pharmacyName'
+                          : 'Home Delivery in Lahore',
+                      style: t(13, w: FontWeight.w600, c: C.text),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Current Status:', style: t(12.5, c: C.sub)),
+                    DawaBadge(
+                      label: status,
+                      bg: isRejected
+                          ? const Color(0xFFFEE2E2)
+                          : const Color(0xFFF1EDFF),
+                      text: isRejected ? const Color(0xFFDC2626) : C.purple,
+                      icon: isRejected
+                          ? Icons.cancel_rounded
+                          : Icons.access_time_rounded,
+                    ),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 18),
-
-          // Pharmacist Demo Action Switcher for Judges & Reviewers
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF312E81), Color(0xFF4C1D95)],
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.admin_panel_settings_rounded,
-                    color: Colors.white, size: 28),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Pharmacist Demo Portal',
-                          style: t(14,
-                              w: FontWeight.w700, c: Colors.white)),
-                      Text(
-                        'Review, verify, and update order statuses as the licensed pharmacist.',
-                        style: t(11.5, c: Colors.white70),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: C.purple,
-                    minimumSize: const Size(0, 36),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                  ),
-                  onPressed: () {
-                    push(
-                      context,
-                      PharmacistAdminScreen(highlightOrderId: _currentOrder['id']),
-                    );
-                  },
-                  child: const Text('Open Admin',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                ),
-              ],
-            ),
-          ),
           const SizedBox(height: 20),
 
-          // Tracking Timeline
-          Text('Order Progress Timeline',
-              style: t(17, w: FontWeight.w800, c: C.indigo)),
-          const SizedBox(height: 12),
-
-          DawaCard(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                _buildTimelineStep(
-                  stepIndex: 0,
-                  title: 'Order Placed',
-                  description: 'Prescription received and registered in DAWA system.',
-                  activeStageIndex: activeStageIndex,
-                  isRejected: isRejected,
-                ),
-                _buildTimelineStep(
-                  stepIndex: 1,
-                  title: 'Awaiting Pharmacist Verification',
-                  description: 'A licensed pharmacist is reviewing prescription legality and dosages.',
-                  activeStageIndex: activeStageIndex,
-                  isRejected: isRejected,
-                ),
-                _buildTimelineStep(
-                  stepIndex: 2,
-                  title: 'Verified by Pharmacist',
-                  description: 'Prescription clinically verified and medicines approved for dispensing.',
-                  activeStageIndex: activeStageIndex,
-                  isRejected: isRejected,
-                ),
-                _buildTimelineStep(
-                  stepIndex: 3,
-                  title: 'Preparing Order',
-                  description: 'Pharmacy staff is packaging and labelling your prescribed medicines.',
-                  activeStageIndex: activeStageIndex,
-                  isRejected: isRejected,
-                ),
-                _buildTimelineStep(
-                  stepIndex: 4,
-                  title: isPickup ? 'Ready for Pickup' : 'Out for Delivery',
-                  description: isPickup
-                      ? 'Packaged and waiting at $pharmacyName counter.'
-                      : 'Handed over to delivery courier for transit.',
-                  activeStageIndex: activeStageIndex,
-                  isRejected: isRejected,
-                ),
-                _buildTimelineStep(
-                  stepIndex: 5,
-                  title: isPickup ? 'Collected' : 'Delivered',
-                  description: isPickup
-                      ? 'Medicines collected by patient from pharmacy.'
-                      : 'Delivered securely to your designated address.',
-                  activeStageIndex: activeStageIndex,
-                  isRejected: isRejected,
-                  isLast: true,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Fulfillment Details Card
-          DawaCard(
-            padding: const EdgeInsets.all(16),
+          // 2. High-End Vertical Timeline
+          DawaSurface(
+            padding: const EdgeInsets.all(22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  isPickup ? 'Pharmacy Pickup Location' : 'Home Delivery Destination',
-                  style: t(14.5, w: FontWeight.w700, c: C.indigo),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Fulfillment Timeline',
+                        style: t(16, w: FontWeight.w800, c: C.text)),
+                    Text(
+                      'Live Updates',
+                      style: t(12, w: FontWeight.w700, c: const Color(0xFF15803D)),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  isPickup ? pharmacyName : 'Patient Address',
-                  style: t(14, w: FontWeight.w600),
-                ),
-                Text(
-                  isPickup ? pharmacyAddress : (deliveryAddress ?? 'Gulberg III, Lahore'),
-                  style: t(13, c: C.sub),
-                ),
+                const SizedBox(height: 20),
+                for (int i = 0; i < stages.length; i++) ...[
+                  _buildTimelineTile(
+                    index: i,
+                    title: stages[i].$1,
+                    subtitle: stages[i].$2,
+                    isCompleted: activeStageIndex > i,
+                    isCurrent: activeStageIndex == i,
+                    isLast: i == stages.length - 1,
+                    timestamp: _findTimestamp(history, stages[i].$1),
+                  ),
+                ],
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
 
-          // Pharmacist Verification Notes if any
-          if (_currentOrder['pharmacist_notes'] != null &&
-              (_currentOrder['pharmacist_notes'] as String).isNotEmpty) ...[
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: C.light,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.medical_information_outlined,
-                      color: C.purple, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Licensed Pharmacist Notes',
-                            style: t(13, w: FontWeight.w700, c: C.purple)),
-                        const SizedBox(height: 2),
-                        Text(
-                          _currentOrder['pharmacist_notes'],
-                          style: t(12.5, c: C.indigo),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+          // 3. Pharmacist Admin Portal Shortcut Callout
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: C.light,
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(height: 20),
-          ],
-
-          OutlinedButton(
-            onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
-            child: const Text('Return to Home'),
+            child: Row(
+              children: [
+                const Icon(Icons.verified_user_outlined,
+                    color: C.indigo, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Demo Notice: Pharmacist verification controls are accessible via Profile > Pharmacist Portal.',
+                    style: t(12, c: C.indigo, h: 1.4),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => push(context, const PharmacistAdminScreen()),
+                  child: Text('Open Portal',
+                      style: t(12, w: FontWeight.w700, c: C.purple)),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 24),
         ],
@@ -328,31 +273,33 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     );
   }
 
-  Widget _buildTimelineStep({
-    required int stepIndex,
+  Widget _buildTimelineTile({
+    required int index,
     required String title,
-    required String description,
-    required int activeStageIndex,
-    required bool isRejected,
-    bool isLast = false,
+    required String subtitle,
+    required bool isCompleted,
+    required bool isCurrent,
+    required bool isLast,
+    String? timestamp,
   }) {
-    final bool isCompleted = !isRejected && stepIndex < activeStageIndex;
-    final bool isCurrent = !isRejected && stepIndex == activeStageIndex;
-
-    Color circleColor = C.border;
+    Color circleColor = const Color(0xFFE2E8F0);
     Widget centerWidget = Text(
-      '${stepIndex + 1}',
-      style: t(12, w: FontWeight.w600, c: C.sub),
+      '${index + 1}',
+      style: t(11, w: FontWeight.w700, c: const Color(0xFF64748B)),
     );
 
     if (isCompleted) {
-      circleColor = C.green;
-      centerWidget = const Icon(Icons.check_rounded, color: Colors.white, size: 16);
+      circleColor = const Color(0xFF24845A);
+      centerWidget = const Icon(Icons.check, size: 14, color: Colors.white);
     } else if (isCurrent) {
       circleColor = C.purple;
-      centerWidget = Text(
-        '${stepIndex + 1}',
-        style: t(12, w: FontWeight.w700, c: Colors.white),
+      centerWidget = Container(
+        width: 10,
+        height: 10,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+        ),
       );
     }
 
@@ -360,23 +307,17 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Step Icon & Vertical Line
+          // Circle + Connecting Line
           Column(
             children: [
-              Container(
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
                 width: 28,
                 height: 28,
                 decoration: BoxDecoration(
                   color: circleColor,
                   shape: BoxShape.circle,
-                  boxShadow: isCurrent
-                      ? [
-                          BoxShadow(
-                              color: C.purple.withValues(alpha: 0.35),
-                              blurRadius: 8,
-                              spreadRadius: 2)
-                        ]
-                      : null,
+                  boxShadow: isCurrent ? DawaShadows.purpleGlow : null,
                 ),
                 child: Center(child: centerWidget),
               ),
@@ -384,7 +325,9 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                 Expanded(
                   child: Container(
                     width: 2,
-                    color: isCompleted ? C.green : C.border,
+                    color: isCompleted
+                        ? const Color(0xFF24845A)
+                        : const Color(0xFFE9E6F0),
                     margin: const EdgeInsets.symmetric(vertical: 4),
                   ),
                 ),
@@ -399,16 +342,28 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: t(14.5,
-                        w: isCurrent ? FontWeight.w800 : FontWeight.w600,
-                        c: isCurrent ? C.purple : (isCompleted ? C.text : C.sub)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        title,
+                        style: t(
+                          14.5,
+                          w: isCurrent ? FontWeight.w800 : FontWeight.w600,
+                          c: isCurrent ? C.purple : (isCompleted ? C.text : C.sub),
+                        ),
+                      ),
+                      if (timestamp != null)
+                        Text(
+                          timestamp,
+                          style: t(11, w: FontWeight.w500, c: C.sub),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    description,
-                    style: t(12.5, c: C.sub, h: 1.4),
+                    subtitle,
+                    style: t(12, c: C.sub),
                   ),
                 ],
               ),
@@ -417,5 +372,19 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
         ],
       ),
     );
+  }
+
+  String? _findTimestamp(List history, String stageTitle) {
+    for (final h in history) {
+      final s = h['status'] as String? ?? '';
+      if (s.toLowerCase().contains(stageTitle.toLowerCase()) ||
+          stageTitle.toLowerCase().contains(s.toLowerCase())) {
+        final dt = h['created_at'] as String?;
+        if (dt != null && dt.length >= 16) {
+          return dt.substring(11, 16); // Extract HH:MM
+        }
+      }
+    }
+    return null;
   }
 }

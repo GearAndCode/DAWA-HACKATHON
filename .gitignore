@@ -6,6 +6,8 @@ build/
 # Backend virtual environment, database & uploads
 backend/venv/
 backend/uploads/
+backend/app/uploads/
+uploads/
 *.db
 *.sqlite3
 __pycache__/
