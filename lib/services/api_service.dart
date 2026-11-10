@@ -351,4 +351,292 @@ class ApiService {
       rethrow;
     }
   }
+
+  // =========================================================
+  // 8. Clinical Urgency Assessment & Fair Resource Allocation
+  // =========================================================
+
+  /// Patient submits urgency assessment for medicines in a prescription
+  Future<List<Map<String, dynamic>>> submitBatchUrgencyAssessments({
+    required int prescriptionId,
+    int patientId = 1,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    try {
+      final body = jsonEncode({
+        'prescription_id': prescriptionId,
+        'patient_id': patientId,
+        'items': items,
+      });
+
+      final res = await http
+          .post(
+            _uri('/urgency-assessments/batch'),
+            headers: {'Content-Type': 'application/json'},
+            body: body,
+          )
+          .timeout(const Duration(seconds: 12));
+
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(utf8.decode(res.bodyBytes));
+        return list.cast<Map<String, dynamic>>();
+      }
+      throw Exception('Failed to submit urgency assessment: ${res.body}');
+    } catch (e) {
+      debugPrint('Error submitting urgency assessment: $e');
+      rethrow;
+    }
+  }
+
+  /// Get urgency assessments for a prescription
+  Future<List<Map<String, dynamic>>> getAssessmentsForPrescription(
+      int prescriptionId) async {
+    try {
+      final res = await http
+          .get(_uri('/urgency-assessments/prescription/$prescriptionId'))
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(utf8.decode(res.bodyBytes));
+        return list.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching prescription assessments: $e');
+      return [];
+    }
+  }
+
+  /// Pharmacist retrieves requests awaiting clinical review
+  Future<List<Map<String, dynamic>>> getPendingUrgencyAssessments() async {
+    try {
+      final res = await http
+          .get(_uri('/admin/urgency-assessments/pending'))
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(utf8.decode(res.bodyBytes));
+        return list.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching pending urgency assessments: $e');
+      return [];
+    }
+  }
+
+  /// Pharmacist verifies urgency assessment and assigns clinical urgency
+  Future<Map<String, dynamic>> reviewUrgencyAssessment(
+    int assessmentId, {
+    required String clinicalUrgency,
+    String verificationStatus = 'VERIFIED',
+    String? notes,
+    String? decisionReason,
+    int pharmacistId = 101,
+    String pharmacistName = 'Licensed Pharmacist',
+  }) async {
+    try {
+      final body = jsonEncode({
+        'clinical_urgency': clinicalUrgency,
+        'verification_status': verificationStatus,
+        'assessment_notes': notes,
+        'decision_reason': decisionReason,
+        'pharmacist_id': pharmacistId,
+        'pharmacist_name': pharmacistName,
+      });
+
+      final res = await http
+          .post(
+            _uri('/admin/urgency-assessments/$assessmentId/review'),
+            headers: {'Content-Type': 'application/json'},
+            body: body,
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      }
+      throw Exception('Review failed: ${res.body}');
+    } catch (e) {
+      debugPrint('Error reviewing urgency assessment: $e');
+      rethrow;
+    }
+  }
+
+  /// Get pharmacy inventory shortages
+  Future<List<Map<String, dynamic>>> getInventoryShortages() async {
+    try {
+      final res = await http
+          .get(_uri('/admin/resource-allocation/shortages'))
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(utf8.decode(res.bodyBytes));
+        return list.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching shortages: $e');
+      return [];
+    }
+  }
+
+  /// Register an allocation request for a patient prescription item
+  Future<Map<String, dynamic>> createAllocationRequest({
+    required int pharmacyId,
+    required int medicineId,
+    int? patientId,
+    int? prescriptionId,
+    int? prescriptionItemId,
+    int? urgencyAssessmentId,
+    required int requestedQuantity,
+  }) async {
+    try {
+      final body = jsonEncode({
+        'pharmacy_id': pharmacyId,
+        'medicine_id': medicineId,
+        'patient_id': patientId ?? 1,
+        'prescription_id': prescriptionId,
+        'prescription_item_id': prescriptionItemId,
+        'urgency_assessment_id': urgencyAssessmentId,
+        'requested_quantity': requestedQuantity,
+      });
+
+      final res = await http
+          .post(
+            _uri('/resource-allocation/request'),
+            headers: {'Content-Type': 'application/json'},
+            body: body,
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      }
+      throw Exception('Failed to create allocation request: ${res.body}');
+    } catch (e) {
+      debugPrint('Error creating allocation request: $e');
+      rethrow;
+    }
+  }
+
+  /// Run fair resource allocation engine for a shortage medicine
+  Future<List<Map<String, dynamic>>> runFairAllocation({
+    required int pharmacyId,
+    required int medicineId,
+    String pharmacistName = 'Licensed Pharmacist',
+  }) async {
+    try {
+      final body = jsonEncode({
+        'pharmacy_id': pharmacyId,
+        'medicine_id': medicineId,
+      });
+
+      final res = await http
+          .post(
+            _uri('/admin/resource-allocation/run', {'pharmacist_name': pharmacistName}),
+            headers: {'Content-Type': 'application/json'},
+            body: body,
+          )
+          .timeout(const Duration(seconds: 12));
+
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(utf8.decode(res.bodyBytes));
+        return list.cast<Map<String, dynamic>>();
+      }
+      throw Exception('Allocation run failed: ${res.body}');
+    } catch (e) {
+      debugPrint('Error running fair allocation: $e');
+      rethrow;
+    }
+  }
+
+  /// Pharmacist manual override with mandatory reason
+  Future<Map<String, dynamic>> overrideAllocation(
+    int allocationId, {
+    required int newQuantity,
+    required String reason,
+    String pharmacistName = 'Licensed Pharmacist',
+  }) async {
+    try {
+      final body = jsonEncode({
+        'override_allocated_quantity': newQuantity,
+        'override_reason': reason,
+        'pharmacist_name': pharmacistName,
+      });
+
+      final res = await http
+          .post(
+            _uri('/admin/resource-allocation/$allocationId/override'),
+            headers: {'Content-Type': 'application/json'},
+            body: body,
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      }
+      throw Exception('Override failed: ${res.body}');
+    } catch (e) {
+      debugPrint('Error overriding allocation: $e');
+      rethrow;
+    }
+  }
+
+  /// Get patient's allocations
+  Future<List<Map<String, dynamic>>> getPatientAllocations(int patientId) async {
+    try {
+      final res = await http
+          .get(_uri('/patient/resource-allocations/$patientId'))
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(utf8.decode(res.bodyBytes));
+        return list.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching patient allocations: $e');
+      return [];
+    }
+  }
+
+  /// Get allocations for a prescription
+  Future<List<Map<String, dynamic>>> getPrescriptionAllocations(int prescriptionId) async {
+    try {
+      final res = await http
+          .get(_uri('/resource-allocation/prescription/$prescriptionId'))
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(utf8.decode(res.bodyBytes));
+        return list.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching prescription allocations: $e');
+      return [];
+    }
+  }
+
+  /// Get allocation audit history
+  Future<List<Map<String, dynamic>>> getAllocationAuditHistory({int? allocationId}) async {
+    try {
+      final params = <String, String>{};
+      if (allocationId != null) params['allocation_id'] = allocationId.toString();
+
+      final res = await http
+          .get(_uri('/admin/resource-allocation/history', params.isNotEmpty ? params : null))
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(utf8.decode(res.bodyBytes));
+        return list.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching audit history: $e');
+      return [];
+    }
+  }
 }

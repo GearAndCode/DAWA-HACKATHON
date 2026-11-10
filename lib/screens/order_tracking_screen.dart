@@ -19,6 +19,7 @@ class OrderTrackingScreen extends StatefulWidget {
 
 class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   Map<String, dynamic>? _currentOrder;
+  List<Map<String, dynamic>> _allocations = [];
   Timer? _pollingTimer;
   bool _isRefreshing = false;
   bool _loading = true;
@@ -46,9 +47,15 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     if (id == null) return;
     try {
       final updated = await ApiService.instance.getOrderDetails(id);
+      List<Map<String, dynamic>> allocs = [];
+      final rxId = updated['prescription_id'] as int?;
+      if (rxId != null) {
+        allocs = await ApiService.instance.getPrescriptionAllocations(rxId);
+      }
       if (mounted) {
         setState(() {
           _currentOrder = updated;
+          _allocations = allocs;
           _loading = false;
         });
       }
@@ -62,8 +69,16 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     final id = _currentOrder!['id'] as int;
     try {
       final updated = await ApiService.instance.getOrderDetails(id);
+      List<Map<String, dynamic>> allocs = _allocations;
+      final rxId = updated['prescription_id'] as int?;
+      if (rxId != null && _allocations.isEmpty) {
+        allocs = await ApiService.instance.getPrescriptionAllocations(rxId);
+      }
       if (mounted) {
-        setState(() => _currentOrder = updated);
+        setState(() {
+          _currentOrder = updated;
+          _allocations = allocs;
+        });
       }
     } catch (_) {}
   }
@@ -205,6 +220,96 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               ],
             ),
           ),
+
+          // Fair Resource Allocation & Clinical Urgency Card
+          if (_allocations.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            DawaSurface(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1EDFF),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.balance_rounded,
+                            color: C.purple, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Fair Resource Allocation Status',
+                              style: t(14.5, w: FontWeight.w700, c: C.indigo),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Pharmacist-verified medicine allocation',
+                              style: t(11.5, c: C.sub),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  for (final a in _allocations) ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F7FC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE9E6F0)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                a['medicine_name'] ?? 'Prescribed Medicine',
+                                style: t(13, w: FontWeight.w700),
+                              ),
+                              DawaBadge(
+                                label:
+                                    '${a["allocation_status"]} (${a["allocated_quantity"]} / ${a["requested_quantity"]})',
+                                bg: a['allocation_status'] == 'Fully Allocated'
+                                    ? const Color(0xFFDCFCE7)
+                                    : const Color(0xFFFEF3C7),
+                                text: a['allocation_status'] == 'Fully Allocated'
+                                    ? const Color(0xFF15803D)
+                                    : const Color(0xFFD97706),
+                                icon: Icons.verified_user_rounded,
+                              ),
+                            ],
+                          ),
+                          if (a['allocation_explanation'] != null &&
+                              a['allocation_explanation'].toString().isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              a['allocation_explanation'],
+                              style: t(11.5, c: C.sub, h: 1.35),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+
           const SizedBox(height: 20),
 
           // 2. High-End Vertical Timeline

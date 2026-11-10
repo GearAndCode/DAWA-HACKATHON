@@ -27,6 +27,7 @@ TextStyle t(double size, {
   Color c = C.text,
   double h = 1.35,
   double? ls,
+  FontStyle? fontStyle,
 }) =>
     GoogleFonts.inter(
       fontSize: size,
@@ -34,6 +35,7 @@ TextStyle t(double size, {
       color: c,
       height: h,
       letterSpacing: ls,
+      fontStyle: fontStyle,
     );
 
 TextStyle ar(double size, {

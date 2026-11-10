@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
+import 'fair_resource_allocation_dashboard.dart';
 
 class PharmacistAdminScreen extends StatefulWidget {
   final int? highlightOrderId;
@@ -13,6 +14,7 @@ class PharmacistAdminScreen extends StatefulWidget {
 }
 
 class _PharmacistAdminScreenState extends State<PharmacistAdminScreen> {
+  int _mainTab = 0; // 0: Orders, 1: Fair Allocation
   List<Map<String, dynamic>> _orders = [];
   bool _loading = true;
   String? _statusFilter;
@@ -190,87 +192,176 @@ class _PharmacistAdminScreenState extends State<PharmacistAdminScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
 
-          // 2. Metrics Bar
-          Row(
-            children: [
-              _metricBox(
-                'Total Orders',
-                '${_orders.length}',
-                const Color(0xFF312E81),
-                Icons.receipt_long_rounded,
-              ),
-              const SizedBox(width: 10),
-              _metricBox(
-                'Pending Review',
-                '${_orders.where((o) => (o['order_status'] ?? o['status']) == 'Awaiting Pharmacist Verification').length}',
-                const Color(0xFFD97706),
-                Icons.pending_actions_rounded,
-              ),
-              const SizedBox(width: 10),
-              _metricBox(
-                'Ready / Active',
-                '${_orders.where((o) => (o['order_status'] ?? o['status']) != 'Delivered' && (o['order_status'] ?? o['status']) != 'Collected').length}',
-                const Color(0xFF24845A),
-                Icons.local_shipping_rounded,
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // 3. Filter Segment
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+          // Primary Section Switcher
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE9E6F0)),
+              boxShadow: DawaShadows.subtle,
+            ),
             child: Row(
               children: [
-                _filterBtn('All Orders', null),
-                const SizedBox(width: 8),
-                _filterBtn('Pending Verification', 'Awaiting Pharmacist Verification'),
-                const SizedBox(width: 8),
-                _filterBtn('Verified', 'Verified by Pharmacist'),
-                const SizedBox(width: 8),
-                _filterBtn('Preparing', 'Preparing Order'),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _mainTab = 0),
+                    borderRadius: BorderRadius.circular(12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _mainTab == 0 ? C.purple : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: _mainTab == 0 ? DawaShadows.purpleGlow : null,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.receipt_long_rounded,
+                            size: 16,
+                            color: _mainTab == 0 ? Colors.white : C.sub,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Incoming Orders',
+                            style: t(
+                              13,
+                              w: _mainTab == 0 ? FontWeight.w700 : FontWeight.w500,
+                              c: _mainTab == 0 ? Colors.white : C.text,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _mainTab = 1),
+                    borderRadius: BorderRadius.circular(12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _mainTab == 1 ? C.purple : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: _mainTab == 1 ? DawaShadows.purpleGlow : null,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.balance_rounded,
+                            size: 16,
+                            color: _mainTab == 1 ? Colors.white : C.sub,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Fair Resource Sharing',
+                            style: t(
+                              13,
+                              w: _mainTab == 1 ? FontWeight.w700 : FontWeight.w500,
+                              c: _mainTab == 1 ? Colors.white : C.text,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(height: 18),
 
-          // 4. Order List
-          if (_loading)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(40),
-                child: CircularProgressIndicator(color: C.purple, strokeWidth: 2.5),
-              ),
-            )
-          else if (_error != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: Column(
-                  children: [
-                    const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 40),
-                    const SizedBox(height: 12),
-                    Text(_error!, style: t(13.5, c: C.sub), textAlign: TextAlign.center),
-                    const SizedBox(height: 12),
-                    FilledButton.icon(
-                      onPressed: _fetchOrders,
-                      icon: const Icon(Icons.refresh_rounded, size: 18),
-                      label: const Text('Try Again'),
-                    ),
-                  ],
+          if (_mainTab == 1)
+            const FairResourceAllocationView()
+          else ...[
+            // 2. Metrics Bar
+            Row(
+              children: [
+                _metricBox(
+                  'Total Orders',
+                  '${_orders.length}',
+                  const Color(0xFF312E81),
+                  Icons.receipt_long_rounded,
                 ),
+                const SizedBox(width: 10),
+                _metricBox(
+                  'Pending Review',
+                  '${_orders.where((o) => (o['order_status'] ?? o['status']) == 'Awaiting Pharmacist Verification').length}',
+                  const Color(0xFFD97706),
+                  Icons.pending_actions_rounded,
+                ),
+                const SizedBox(width: 10),
+                _metricBox(
+                  'Ready / Active',
+                  '${_orders.where((o) => (o['order_status'] ?? o['status']) != 'Delivered' && (o['order_status'] ?? o['status']) != 'Collected').length}',
+                  const Color(0xFF24845A),
+                  Icons.local_shipping_rounded,
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // 3. Filter Segment
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _filterBtn('All Orders', null),
+                  const SizedBox(width: 8),
+                  _filterBtn('Pending Verification', 'Awaiting Pharmacist Verification'),
+                  const SizedBox(width: 8),
+                  _filterBtn('Verified', 'Verified by Pharmacist'),
+                  const SizedBox(width: 8),
+                  _filterBtn('Preparing', 'Preparing Order'),
+                ],
               ),
-            )
-          else if (_orders.isEmpty)
-            const EmptyState(Icons.task_alt_rounded, 'No orders matching filter',
-                'All prescription orders are processed or none match the selected status filter.')
-          else
-            for (final o in _orders) ...[
-              _buildAdminOrderCard(o),
-              const SizedBox(height: 14),
-            ],
+            ),
+            const SizedBox(height: 18),
+
+            // 4. Order List
+            if (_loading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(40),
+                  child: CircularProgressIndicator(color: C.purple, strokeWidth: 2.5),
+                ),
+              )
+            else if (_error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Column(
+                    children: [
+                      const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 40),
+                      const SizedBox(height: 12),
+                      Text(_error!, style: t(13.5, c: C.sub), textAlign: TextAlign.center),
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        onPressed: _fetchOrders,
+                        icon: const Icon(Icons.refresh_rounded, size: 18),
+                        label: const Text('Try Again'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (_orders.isEmpty)
+              const EmptyState(Icons.task_alt_rounded, 'No orders matching filter',
+                  'All prescription orders are processed or none match the selected status filter.')
+            else
+              for (final o in _orders) ...[
+                _buildAdminOrderCard(o),
+                const SizedBox(height: 14),
+              ],
+          ],
         ],
       ),
     );

@@ -5,6 +5,12 @@ from app.models.inventory import PharmacyInventory
 from app.models.prescription import Prescription, PrescriptionItem
 from app.models.invoice import Invoice, InvoiceItem
 from app.models.order import Order, OrderStatusHistory
+from app.models.urgency_assessment import (
+    PatientUrgencyAssessment,
+    PharmacistUrgencyReview,
+    ResourceAllocation,
+    AllocationHistory,
+)
 
 __all__ = [
     "Patient",
@@ -17,4 +23,8 @@ __all__ = [
     "InvoiceItem",
     "Order",
     "OrderStatusHistory",
+    "PatientUrgencyAssessment",
+    "PharmacistUrgencyReview",
+    "ResourceAllocation",
+    "AllocationHistory",
 ]
