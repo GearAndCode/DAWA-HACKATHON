@@ -31,6 +31,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late String _greeting = greetingFor(DateTime.now());
   Timer? _timer;
+  Timer? _searchDebounce;
   final _search = TextEditingController();
   final _focus = FocusNode();
   String _query = '';
@@ -48,12 +49,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _timer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
     _focus.addListener(() => setState(() {}));
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      LocationPermissionModal.showIfNeeded(context, () {
-        _loadNearbyPharmacies();
-      });
-      _loadNearbyPharmacies();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       _loadRecentOrders();
+      if (LocationService.instance.currentLocation.value == null &&
+          !LocationService.instance.permissionRequested.value) {
+        await LocationPermissionModal.showIfNeeded(context, () {
+          _loadNearbyPharmacies();
+        });
+      }
+      // Load pharmacies if not loaded by modal
+      if (_nearbyPharmacies.isEmpty) {
+        _loadNearbyPharmacies();
+      }
     });
   }
 
@@ -96,31 +103,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
-  Future<void> _onSearchChanged(String val) async {
-    setState(() => _query = val.trim());
-    if (_query.isEmpty) {
-      setState(() => _searchedMedicines = []);
+  void _onSearchChanged(String val) {
+    _searchDebounce?.cancel();
+    final trimmed = val.trim();
+    if (trimmed.isEmpty) {
+      setState(() {
+        _query = '';
+        _searchedMedicines = [];
+        _searchingMeds = false;
+      });
       return;
     }
 
-    setState(() => _searchingMeds = true);
-    try {
-      final results = await ApiService.instance.searchMedicines(query: _query);
-      if (mounted) {
-        setState(() {
-          _searchedMedicines = results;
-          _searchingMeds = false;
-        });
+    setState(() {
+      _query = trimmed;
+      _searchingMeds = true;
+    });
+
+    _searchDebounce = Timer(const Duration(milliseconds: 320), () async {
+      try {
+        final results = await ApiService.instance.searchMedicines(query: trimmed);
+        if (mounted && _query == trimmed) {
+          setState(() {
+            _searchedMedicines = results;
+            _searchingMeds = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _searchingMeds = false);
       }
-    } catch (_) {
-      if (mounted) setState(() => _searchingMeds = false);
-    }
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    _searchDebounce?.cancel();
     _search.dispose();
     _focus.dispose();
     super.dispose();

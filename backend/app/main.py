@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import init_db
-from app.routers import location, medicines, ocr, prescriptions, invoices, orders, admin, urgency
+from app.routers import location, medicines, ocr, prescriptions, invoices, orders, admin
 from app.core.config import settings
 
 app = FastAPI(
@@ -33,7 +33,6 @@ app.include_router(prescriptions.router, prefix=settings.API_PREFIX)
 app.include_router(invoices.router, prefix=settings.API_PREFIX)
 app.include_router(orders.router, prefix=settings.API_PREFIX)
 app.include_router(admin.router, prefix=settings.API_PREFIX)
-app.include_router(urgency.router, prefix=settings.API_PREFIX)
 
 @app.get("/")
 def root():

@@ -25,6 +25,6 @@ def get_db():
 def init_db():
     # Import all models to ensure they are registered with Base.metadata
     from app.models import (  # noqa: F401
-        patient, pharmacy, medicine, inventory, prescription, invoice, order, urgency_assessment
+        patient, pharmacy, medicine, inventory, prescription, invoice, order
     )
     Base.metadata.create_all(bind=engine)

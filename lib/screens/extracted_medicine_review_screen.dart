@@ -5,7 +5,7 @@ import '../services/location_service.dart';
 import '../navigation/nav.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
-import 'patient_urgency_assessment_screen.dart';
+import 'pharmacy_matching_screen.dart';
 
 class ExtractedMedicineReviewScreen extends StatefulWidget {
   final int prescriptionId;
@@ -167,10 +167,10 @@ class _ExtractedMedicineReviewScreenState
 
       push(
         context,
-        PatientUrgencyAssessmentScreen(
+        PharmacyMatchingScreen(
           prescriptionId: widget.prescriptionId,
           confirmedItems: validItems,
-          preloadedPharmacies: matchingPharmacies.cast<Map<String, dynamic>>(),
+          matchingPharmacies: matchingPharmacies.cast<Map<String, dynamic>>(),
         ),
       );
     } catch (e) {
@@ -342,8 +342,8 @@ class _ExtractedMedicineReviewScreenState
                   )
                 : const Icon(Icons.search_rounded),
             label: Text(_submitting
-                ? 'Saving Medicines...'
-                : 'Confirm Medicines & Urgency Assessment'),
+                ? 'Searching Pharmacy Inventories...'
+                : 'Confirm Medicines & Find Available Pharmacies'),
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(

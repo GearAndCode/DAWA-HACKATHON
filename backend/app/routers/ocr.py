@@ -2,6 +2,7 @@ import os
 import uuid
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Form
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 from app.database import get_db
 from app.models.prescription import Prescription, PrescriptionItem
 from app.schemas.prescription import PrescriptionExtractionResponse
@@ -43,8 +44,8 @@ async def upload_prescription(
     with open(filepath, "wb") as f:
         f.write(contents)
 
-    # Process through genuine pipeline
-    response_data = process_prescription_pipeline(filepath)
+    # Process through genuine pipeline offloaded to threadpool so asyncio loop stays responsive
+    response_data = await run_in_threadpool(process_prescription_pipeline, filepath)
 
     # Save prescription record in database
     db_prescription = Prescription(

@@ -27,7 +27,6 @@ TextStyle t(double size, {
   Color c = C.text,
   double h = 1.35,
   double? ls,
-  FontStyle? fontStyle,
 }) =>
     GoogleFonts.inter(
       fontSize: size,
@@ -35,7 +34,6 @@ TextStyle t(double size, {
       color: c,
       height: h,
       letterSpacing: ls,
-      fontStyle: fontStyle,
     );
 
 TextStyle ar(double size, {
@@ -216,7 +214,18 @@ class _IlluminatedCardState extends State<IlluminatedCard>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _ctrl,
-      builder: (context, _) {
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(widget.radius),
+          onTap: widget.onTap,
+          child: Padding(
+            padding: widget.padding,
+            child: widget.child,
+          ),
+        ),
+      ),
+      builder: (context, childWidget) {
         final val = _ctrl.value;
         return Container(
           decoration: BoxDecoration(
@@ -246,17 +255,7 @@ class _IlluminatedCardState extends State<IlluminatedCard>
               width: 1.2,
             ),
           ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(widget.radius),
-              onTap: widget.onTap,
-              child: Padding(
-                padding: widget.padding,
-                child: widget.child,
-              ),
-            ),
-          ),
+          child: childWidget,
         );
       },
     );
