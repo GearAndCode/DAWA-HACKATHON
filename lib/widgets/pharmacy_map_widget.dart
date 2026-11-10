@@ -59,32 +59,37 @@ class _PharmacyMapWidgetState extends State<PharmacyMapWidget>
           children: [
             // 1. Grid & Compass Vector Radar
             Positioned.fill(
-              child: AnimatedBuilder(
-                animation: _pulseController,
-                builder: (context, _) {
-                  return CustomPaint(
-                    painter: _MapCanvasPainter(
-                      pulse: _pulseController.value,
-                      patientLat: widget.patientLat,
-                      patientLon: widget.patientLon,
-                      pharmacies: widget.pharmacies,
-                      selectedIndex: _selectedPharmacyIndex,
-                    ),
-                  );
-                },
+              child: IgnorePointer(
+                child: AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (context, _) {
+                    return CustomPaint(
+                      painter: _MapCanvasPainter(
+                        pulse: _pulseController.value,
+                        patientLat: widget.patientLat,
+                        patientLon: widget.patientLon,
+                        pharmacies: widget.pharmacies,
+                        selectedIndex: _selectedPharmacyIndex,
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
 
             // 2. Interactive Pharmacy Markers
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final w = constraints.maxWidth;
-                final h = constraints.maxHeight;
+            Positioned.fill(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final w = constraints.maxWidth;
+                  final h = constraints.maxHeight;
 
-                return Stack(
-                  children: [
-                    // Patient Marker (Center)
-                    Center(
+                  return Stack(
+                    fit: StackFit.expand,
+                    clipBehavior: Clip.none,
+                    children: [
+                      // Patient Marker (Center)
+                      Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -143,8 +148,9 @@ class _PharmacyMapWidgetState extends State<PharmacyMapWidget>
                 );
               },
             ),
+          ),
 
-            // 3. Top Banner
+          // 3. Top Banner
             Positioned(
               top: 12,
               left: 14,
@@ -228,12 +234,14 @@ class _PharmacyMapWidgetState extends State<PharmacyMapWidget>
     return Positioned(
       left: px - 40,
       top: py - 20,
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _selectedPharmacyIndex = index);
-          widget.onSelectPharmacy?.call(p);
-        },
-        child: Column(
+      child: SizedBox(
+        width: 80,
+        child: GestureDetector(
+          onTap: () {
+            setState(() => _selectedPharmacyIndex = index);
+            widget.onSelectPharmacy?.call(p);
+          },
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
@@ -279,8 +287,9 @@ class _PharmacyMapWidgetState extends State<PharmacyMapWidget>
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildSelectedCard(Map<String, dynamic> p) {
     final name = p['name'] ?? 'Pharmacy';

@@ -6,7 +6,6 @@ import '../services/api_service.dart';
 import '../services/location_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
-import '../widgets/location_permission_modal.dart';
 import '../widgets/pharmacy_map_widget.dart';
 import 'other_screens.dart';
 import 'prescription_screen.dart';
@@ -49,18 +48,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _timer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
     _focus.addListener(() => setState(() {}));
 
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadRecentOrders();
-      if (LocationService.instance.currentLocation.value == null &&
-          !LocationService.instance.permissionRequested.value) {
-        await LocationPermissionModal.showIfNeeded(context, () {
-          _loadNearbyPharmacies();
-        });
-      }
-      // Load pharmacies if not loaded by modal
-      if (_nearbyPharmacies.isEmpty) {
-        _loadNearbyPharmacies();
-      }
+      _loadNearbyPharmacies();
     });
   }
 
@@ -515,37 +505,48 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SectionHeader('Quick Actions', subtitle: 'Essential healthcare services'),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.9,
+          Column(
             children: [
-              for (final a in actions)
-                DawaSurface(
-                  padding: const EdgeInsets.all(14),
-                  onTap: a.$4,
-                  child: Row(
-                    children: [
-                      IconChip(a.$3, size: 42, iconSize: 20),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(a.$1, style: t(14, w: FontWeight.w700, c: C.text)),
-                            const SizedBox(height: 2),
-                            Text(a.$2, style: t(11.5, c: C.sub), maxLines: 1),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              Row(
+                children: [
+                  Expanded(child: _buildActionTile(actions[0])),
+                  const SizedBox(width: 12),
+                  Expanded(child: _buildActionTile(actions[1])),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: _buildActionTile(actions[2])),
+                  const SizedBox(width: 12),
+                  Expanded(child: _buildActionTile(actions[3])),
+                ],
+              ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionTile((String, String, IconData, VoidCallback) a) {
+    return DawaSurface(
+      padding: const EdgeInsets.all(14),
+      onTap: a.$4,
+      child: Row(
+        children: [
+          IconChip(a.$3, size: 42, iconSize: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(a.$1, style: t(14, w: FontWeight.w700, c: C.text)),
+                const SizedBox(height: 2),
+                Text(a.$2, style: t(11.5, c: C.sub), maxLines: 1),
+              ],
+            ),
           ),
         ],
       ),

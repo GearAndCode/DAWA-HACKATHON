@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -212,19 +213,26 @@ class _IlluminatedCardState extends State<IlluminatedCard>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(widget.radius),
-          onTap: widget.onTap,
-          child: Padding(
+    final innerChild = widget.onTap != null
+        ? Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(widget.radius),
+              onTap: widget.onTap,
+              child: Padding(
+                padding: widget.padding,
+                child: widget.child,
+              ),
+            ),
+          )
+        : Padding(
             padding: widget.padding,
             child: widget.child,
-          ),
-        ),
-      ),
+          );
+
+    return AnimatedBuilder(
+      animation: _ctrl,
+      child: innerChild,
       builder: (context, childWidget) {
         final val = _ctrl.value;
         return Container(
@@ -284,23 +292,30 @@ class _FadeSlideEntranceState extends State<FadeSlideEntrance>
   late AnimationController _ctrl;
   late Animation<double> _opacity;
   late Animation<double> _slide;
+  Timer? _delayTimer;
 
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 650),
+      duration: const Duration(milliseconds: 380),
     );
 
     _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
     _slide = Tween<double>(begin: widget.slideOffset, end: 0.0)
         .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
 
+    _ctrl.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        setState(() {}); // Remove wrapper layers once completed
+      }
+    });
+
     if (widget.delay == Duration.zero) {
       _ctrl.forward();
     } else {
-      Future.delayed(widget.delay, () {
+      _delayTimer = Timer(widget.delay, () {
         if (mounted) _ctrl.forward();
       });
     }
@@ -308,20 +323,39 @@ class _FadeSlideEntranceState extends State<FadeSlideEntrance>
 
   @override
   void dispose() {
+    _delayTimer?.cancel();
     _ctrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_ctrl.isCompleted) {
+      return widget.child;
+    }
+
     return AnimatedBuilder(
       animation: _ctrl,
+      child: widget.child,
       builder: (context, child) {
-        return Opacity(
-          opacity: _opacity.value,
-          child: Transform.translate(
-            offset: Offset(0, _slide.value),
-            child: widget.child,
+        final op = _opacity.value.clamp(0.0, 1.0);
+        if (op <= 0.05) {
+          return IgnorePointer(
+            ignoring: true,
+            child: Opacity(
+              opacity: 0.0,
+              child: child,
+            ),
+          );
+        }
+        return IgnorePointer(
+          ignoring: false,
+          child: Opacity(
+            opacity: op,
+            child: Transform.translate(
+              offset: Offset(0, _slide.value),
+              child: child,
+            ),
           ),
         );
       },
